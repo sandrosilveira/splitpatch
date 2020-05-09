@@ -2,7 +2,7 @@
 #
 #   Copyright
 #
-#       Copyright (C) 2014 Jari Aalto <jari.aalto@cante.net>
+#       Copyright (C) 2014-2020 Jari Aalto <jari.aalto@cante.net>
 #       Copyright (C) 2007-2014 Peter Hutterer <peter.hutterer@who-t.net>
 #       Copyright (C) 2007-2014 Benjamin Close <Benjamin.Close@clearchain.com>
 #
@@ -23,17 +23,18 @@
 #
 #  Description
 #
+#       Splitpatch is a utility to split a patch up into
+#       multiple patch files. If the --hunks option is provided on the
+#       command line, each hunk is saved on its own patch file.
+
 PROGRAM = "splitpatch"
-MYVERSION = 1.0
+MYVERSION = 1.1
 LICENSE = "GPL-2+"  # See official acronyms: https://spdx.org/licenses/
 HOMEPAGE = "https://github.com/jaalto/splitpatch"
 
-#       Splitpatch is a simple script to split a patch up into
-#       multiple patch files. If the --hunks option is provided on the
-#       command line, each hunk gets its own patchfile.
-
 class Splitter
-    def initialize(file)
+    def initialize(file, encode)
+       @encode = encode
        @filename = file
        @fullname = false
     end
@@ -51,10 +52,12 @@ class Splitter
             puts "File #{filename} already exists. Renaming patch."
             appendix = 0
             zero = appendix.to_s.rjust(3, '0')
+
             while File.exists?("#{filename}.#{zero}")
                 appendix += 1
                 zero = appendix.to_s.rjust(3, '0')
             end
+
             filename << ".#{zero}"
         end
         return open(filename, "w")
@@ -62,10 +65,12 @@ class Splitter
 
     def getFilenameByHeader(header)
       filename = getFilename(header[0])
+
       if (@fullname && filename == 'dev-null') ||
              (! @fullname && filename == 'null')
-	filename = getFilename(header[1])
+        filename = getFilename(header[1])
       end
+
       filename
     end
 
@@ -73,6 +78,7 @@ class Splitter
         tokens = line.split(" ")
         tokens = tokens[1].split(":")
         tokens = tokens[0].split("/")
+
         if @fullname
             return tokens.reject!(&:empty?).join('-')
         else
@@ -80,32 +86,36 @@ class Splitter
         end
     end
 
-    # Split the patchfile by files 
+    # Split the patchfile by files
     def splitByFile
         legacy = false
         outfile = nil
         stream = open(@filename, 'rb')
+
         until (stream.eof?)
             line = stream.readline
 
-            # we need to create a new file
+            # We need to create a new file
             if (line =~ /^Index: .*/) == 0
-                # patch includes Index lines
-                # drop into "legacy mode"
+                # Patch includes Index lines
+                # Drop into "legacy mode"
                 legacy = true
+
                 if (outfile)
                     outfile.close_write
                 end
+
                 filename = getFilename(line)
                 filename << ".patch"
                 outfile = createFile(filename)
                 outfile.write(line)
             elsif (line =~ /--- .*/) == 0 and not legacy
-                if (outfile) 
+                if (outfile)
                     outfile.close_write
                 end
-                #find filename
-                # next line is header too
+
+                # Find filename
+                # Next line is header too
                 header = [ line, stream.readline ]
                 filename = getFilenameByHeader(header)
                 filename << ".patch"
@@ -127,21 +137,24 @@ class Splitter
         filename = ""
         counter = 0
         header = []
-        until (stream.eof?)
-            line = stream.readline
 
-            # we need to create a new file
+        until (stream.eof?)
+            line = stream.readline.encode("UTF-8", @encode)
+
+            # We need to create a new file
             if (line =~ /^Index: .*/) == 0
-                # patch includes Index lines
-                # drop into "legacy mode"
+                # Patch includes Index lines
+                # Drop into "legacy mode"
                 legacy = true
                 filename = getFilename(line)
                 header << line
-                # remaining 3 lines of header
+
+                # Remaining 3 lines of header
                 for i in 0..2
                     line = stream.readline
                     header << line
                 end
+
                 counter = 0
             elsif (line =~ /--- .*/) == 0 and not legacy
                 #find filename
@@ -150,7 +163,7 @@ class Splitter
                 filename = getFilenameByHeader(header)
                 counter = 0
             elsif (line =~ /@@ .* @@/) == 0
-                if (outfile) 
+                if (outfile)
                     outfile.close_write
                 end
 
@@ -177,9 +190,20 @@ SYNOPSIS
     #{PROGRAM} [options] FILE.patch
 
 OPTIONS
-    -h,--help
-    -H,--hunk
-    -V,--version
+    -e=ENCODING, --encode=ENCODING
+        Read file and save patch hunks using ENCODING. Default is 'UTF-8'.
+
+    -f, --fullname
+        Use full name upn saving patch hunks
+
+    -h, --help
+        Show short help. This page.
+
+    -H, --hunk
+        Split by hunks.
+
+    -V, --version
+        Display version, licence and homepage.
 
 DESCRIPTION
 
@@ -207,29 +231,34 @@ def version
 end
 
 def parsedOptions
-    if ARGV.length < 1 or ARGV.length > 2
+    if ARGV.length < 1
         puts "ERROR: missing argument. See --help."
         exit 1
     end
 
-    opts = {}
+    opts = {
+        encode: "UTF-8"
+    }
 
-    opt = ARGV[0]
+    ARGV.each do |opt|
     case opt
-    when /^-h$/, /--help/
-        opts[:help] = true
-    when /^-H$/, /--hunks?/
-        opts[:hunk] = true
-    when /^-V$/, /--version/
-        opts[:version] = true
-    when /^-f$/, /--fullname/
-        opts[:fullname] = true
-    when /^-/
-        puts "ERROR: Unknown option: #{opt}. See --help."
-        exit 1
+        when /^-e=(.+?)$/, /^--encode=(.+?)$/
+            opts[:encode] = $~[1]
+        when /^-f$/, /--fullname/
+            opts[:fullname] = true
+        when /^-h$/, /--help/
+            opts[:help] = true
+        when /^-H$/, /--hunks?/
+            opts[:hunk] = true
+        when /^-V$/, /--version/
+            opts[:version] = true
+        when /^-/
+            puts "ERROR: Unknown option: #{opt}. See --help."
+            exit 1
+        else
+            opts[:file] = opt
+        end
     end
-
-    opts[:file] = ARGV[-1]
 
     return opts
 end
@@ -239,15 +268,15 @@ def main
 
     if opts[:help]
         help
-	exit
+        exit
     end
 
     if opts[:version]
         version
-	exit
+        exit
     end
 
-    s = Splitter.new(opts[:file])
+    s = Splitter.new(opts[:file], opts[:encode])
     s.fullname(true) if opts[:fullname]
 
     if !s.validFile?
