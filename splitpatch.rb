@@ -80,7 +80,8 @@ class Splitter
         tokens = tokens[0].split("/")
 
         if @fullname
-            return tokens.reject!(&:empty?).join('-')
+            tokens.reject!(&:empty?)
+            return tokens.join('-')
         else
             return tokens[-1]
         end
