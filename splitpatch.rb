@@ -194,7 +194,7 @@ OPTIONS
         Read file and save patch hunks using ENCODING. Default is 'UTF-8'.
 
     -f, --fullname
-        Use full name upn saving patch hunks
+        Use full name upon saving patch hunks
 
     -h, --help
         Show short help. This page.
