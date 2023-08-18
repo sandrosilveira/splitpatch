@@ -80,8 +80,7 @@ class Splitter
         tokens = tokens[0].split("/")
 
         if @fullname
-            tokens.reject!(&:empty?)
-            return tokens.join('-')
+            return tokens.reject!(&:empty?).join('-')
         else
             return tokens[-1]
         end
@@ -94,7 +93,7 @@ class Splitter
         stream = open(@filename, 'rb')
 
         until (stream.eof?)
-            line = stream.readline
+            line = stream.readline.encode("UTF-8", @encode)
 
             # We need to create a new file
             if (line =~ /^Index: .*/) == 0
@@ -181,6 +180,8 @@ class Splitter
                 end
             end
         end
+        outfile.close
+        stream.close
     end
 
 end
@@ -261,6 +262,11 @@ def parsedOptions
         end
     end
 
+    if opts[:file].nil?
+        puts "ERROR: missing FILE.patch argument. See --help."
+        exit 1
+    end
+
     return opts
 end
 
@@ -291,6 +297,9 @@ def main
     end
 end
 
-main
+# Only run if the script was the main, not loaded or required
+if __FILE__ == $0
+    main
+end
 
 # End of file
